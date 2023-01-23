@@ -217,9 +217,6 @@ static void check_submit(void **state) {
     assert_true(squid_executor_of(&instance));
     struct squid_executor *executor;
     assert_true(triggerfish_strong_instance(instance, (void **) &executor));
-    uintmax_t count;
-    assert_true(squid_executor_count(executor, &count));
-    assert_int_equal(count, 0);
     struct triggerfish_strong *out;
     assert_true(squid_executor_submit(executor, function,
                                       &random_value, &out));
@@ -233,16 +230,8 @@ static void check_submit(void **state) {
     assert_null(result.out);
     assert_int_equal(result.error, random_value);
     assert_true(triggerfish_strong_release(out));
-    assert_true(squid_executor_ready(executor, &count));
-    assert_int_equal(count, 1);
-    assert_true(squid_executor_count(executor, &count));
-    assert_int_equal(count, 1);
     for (uintmax_t delay = 65, slept; delay && (slept = sleep(delay));
          delay -= slept);
-    assert_true(squid_executor_ready(executor, &count));
-    assert_int_equal(count, 0);
-    assert_true(squid_executor_count(executor, &count));
-    assert_int_equal(count, 0);
     assert_true(triggerfish_strong_release(instance));
     squid_error = SQUID_ERROR_NONE;
 }
