@@ -221,6 +221,8 @@ static void *routine(void *object) {
             if (!is_cancelled()) {
                 atomic_store(&task->status, SQUID_FUTURE_STATUS_DONE);
             }
+        } else {
+            atomic_store(&task->status, SQUID_FUTURE_STATUS_CANCELLED);
         }
         seagrass_required_true(!pthread_cond_signal(&task->condition));
         seagrass_required_true(triggerfish_strong_release(out));
@@ -241,10 +243,9 @@ static void *routine(void *object) {
         seagrass_required_true(
                 LIONFISH_CONCURRENT_LINKED_QUEUE_SR_ERROR_QUEUE_IS_EMPTY
                 == lionfish_error);
-        if (!(error = pthread_cond_timedwait(
-                &executor->threads.condition,
-                &executor->threads.mutex,
-                &tp))
+        if (!(error = pthread_cond_timedwait(&executor->threads.condition,
+                                             &executor->threads.mutex,
+                                             &tp))
             || ETIMEDOUT == error) {
             break;
         }
@@ -275,12 +276,8 @@ static bool enqueue(struct squid_executor *const object,
         return false;
     }
     if (atomic_load(&object->threads.ready)) {
-        seagrass_required_true(!pthread_mutex_lock(
-                &object->threads.mutex));
         seagrass_required_true(!pthread_cond_signal(
                 &object->threads.condition));
-        seagrass_required_true(!pthread_mutex_unlock(
-                &object->threads.mutex));
     } else {
         pthread_t thread;
         int error;
