@@ -201,9 +201,6 @@ static void *routine(void *object) {
                                == triggerfish_error);
         return NULL;
     }
-    uintmax_t value;
-    seagrass_required_true(seagrass_uintmax_t_add(
-            1, atomic_fetch_add(&executor->threads.count, 1), &value));
     struct triggerfish_strong *out;
     loop:
     while (lionfish_concurrent_linked_queue_sr_remove(&executor->tasks,
@@ -218,7 +215,7 @@ static void *routine(void *object) {
         if (is_running) {
             atomic_store(&task->status, SQUID_FUTURE_STATUS_RUNNING);
             task->function(task->args, is_cancelled, &task->out, &task->error);
-            if (!is_cancelled()) {
+            if (SQUID_FUTURE_STATUS_RUNNING == atomic_load(&task->status)) {
                 atomic_store(&task->status, SQUID_FUTURE_STATUS_DONE);
             }
         } else {
@@ -234,6 +231,7 @@ static void *routine(void *object) {
     struct timespec tp;
     seagrass_required_true(!clock_gettime(CLOCK_REALTIME, &tp));
     seagrass_required_true((tp.tv_sec += 60) >= 0);
+    uintmax_t value;
     seagrass_required_true(seagrass_uintmax_t_add(
             1, atomic_fetch_add(&executor->threads.ready, 1), &value));
     int error;
@@ -268,6 +266,20 @@ static bool enqueue(struct squid_executor *const object,
                     struct triggerfish_strong *const future) {
     assert(object);
     assert(future);
+    if (!atomic_load(&object->threads.ready)) {
+        pthread_t thread;
+        int error;
+        if ((error = pthread_create(&thread, NULL, routine, object))) {
+            seagrass_required_true(EAGAIN == error);
+            if (!atomic_load(&object->threads.count)) {
+                squid_error = SQUID_EXECUTOR_ERROR_THREAD_CREATION_FAILED;
+                return false;
+            }
+        }
+        uintmax_t value;
+        seagrass_required_true(seagrass_uintmax_t_add(
+                1, atomic_fetch_add(&object->threads.count, 1), &value));
+    }
     if (!lionfish_concurrent_linked_queue_sr_add(&object->tasks, future)) {
         seagrass_required_true(
                 LIONFISH_CONCURRENT_LINKED_QUEUE_SR_ERROR_MEMORY_ALLOCATION_FAILED
@@ -275,17 +287,35 @@ static bool enqueue(struct squid_executor *const object,
         squid_error = SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED;
         return false;
     }
-    if (atomic_load(&object->threads.ready)) {
-        seagrass_required_true(!pthread_cond_signal(
-                &object->threads.condition));
-    } else {
-        pthread_t thread;
-        int error;
-        if ((error = pthread_create(&thread, NULL, routine, object))) {
-            seagrass_required_true(EAGAIN == error);
-            seagrass_required_true(atomic_load(&object->threads.count));
-        }
+    seagrass_required_true(!pthread_cond_signal(&object->threads.condition));
+    return true;
+}
+
+static bool submit(struct squid_executor *const object,
+                   struct triggerfish_strong *const executor,
+                   squid_function const function,
+                   void *const args,
+                   struct triggerfish_strong **const out) {
+    assert(object);
+    assert(executor);
+    assert(function);
+    assert(out);
+    struct triggerfish_strong *future;
+    if (!squid_future_of(executor, function, args, &future)) {
+        seagrass_required_true(SQUID_FUTURE_ERROR_MEMORY_ALLOCATION_FAILED
+                               == squid_error);
+        squid_error = SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED;
+        return false;
     }
+    if (!enqueue(object, future)) {
+        seagrass_required_true(SQUID_EXECUTOR_ERROR_THREAD_CREATION_FAILED
+                               == squid_error
+                               || SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED
+                                  == squid_error);
+        seagrass_required_true(triggerfish_strong_release(future));
+        return false;
+    }
+    *out = future;
     return true;
 }
 
@@ -318,23 +348,12 @@ bool squid_executor_submit(struct squid_executor *const object,
         squid_error = SQUID_EXECUTOR_ERROR_IS_BUSY_SHUTTING_DOWN;
         return false;
     }
-    struct triggerfish_strong *future;
-    if (!squid_future_of(self, function, args, &future)) {
-        seagrass_required_true(SQUID_FUTURE_ERROR_MEMORY_ALLOCATION_FAILED
-                               == squid_error);
-        seagrass_required_true(triggerfish_strong_release(self));
-        squid_error = SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED;
-        return false;
+    if (!(result = submit(object, self, function, args, out))) {
+        seagrass_required_true(SQUID_EXECUTOR_ERROR_THREAD_CREATION_FAILED
+                               == squid_error
+                               || SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED
+                                  == squid_error);
     }
-    result = enqueue(object, future);
-    if (!result) {
-        seagrass_required_true(SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED
-                               == squid_error);
-        seagrass_required_true(triggerfish_strong_release(future));
-        seagrass_required_true(triggerfish_strong_release(self));
-        return false;
-    }
-    *out = future;
     seagrass_required_true(triggerfish_strong_release(self));
     return result;
 }

@@ -10,6 +10,7 @@
 #define SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED       3
 #define SQUID_EXECUTOR_ERROR_IS_BUSY_SHUTTING_DOWN          4
 #define SQUID_EXECUTOR_ERROR_FUNCTION_IS_NULL               5
+#define SQUID_EXECUTOR_ERROR_THREAD_CREATION_FAILED         6
 
 struct triggerfish_strong;
 struct squid_executor;
@@ -87,6 +88,8 @@ typedef void (*squid_function)(void *args,
  * @throws SQUID_EXECUTOR_ERROR_OUT_IS_NULL if out is <i>NULL</i>.
  * @throws SQUID_EXECUTOR_ERROR_IS_BUSY_SHUTTING_DOWN if executor is busy
  * shutting down and therefore not accepting anymore requests.
+ * @throws SQUID_EXECUTOR_ERROR_THREAD_CREATION_FAILED if we failed to create
+ * a thread.
  * @note <b>out</b> must be released once done with it.
  */
 bool squid_executor_submit(struct squid_executor *object,

@@ -236,6 +236,23 @@ static void check_submit(void **state) {
     squid_error = SQUID_ERROR_NONE;
 }
 
+static void check_submit_error_on_thread_creation_failed(void **state) {
+    squid_error = SQUID_ERROR_NONE;
+    struct triggerfish_strong *instance;
+    assert_true(squid_executor_of(&instance));
+    struct squid_executor *executor;
+    assert_true(triggerfish_strong_instance(instance, (void **) &executor));
+    struct triggerfish_strong *out;
+    pthread_create_is_overridden = true;
+    will_return(cmocka_test_pthread_create, EAGAIN);
+    assert_false(squid_executor_submit(executor, function,
+                                      &random_value, &out));
+    pthread_create_is_overridden = false;
+    assert_int_equal(SQUID_EXECUTOR_ERROR_THREAD_CREATION_FAILED, squid_error);
+    assert_true(triggerfish_strong_release(instance));
+    squid_error = SQUID_ERROR_NONE;
+}
+
 int main(int argc, char *argv[]) {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(check_invalidate_error_on_object_is_null),
@@ -260,6 +277,7 @@ int main(int argc, char *argv[]) {
             cmocka_unit_test(check_submit_error_on_out_is_null),
             cmocka_unit_test(check_submit_error_on_is_busy_shutting_down),
             cmocka_unit_test(check_submit),
+            cmocka_unit_test(check_submit_error_on_thread_creation_failed),
     };
     //cmocka_set_message_output(CM_OUTPUT_XML);
     return cmocka_run_group_tests(tests, NULL, NULL);
