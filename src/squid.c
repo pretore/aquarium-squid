@@ -22,7 +22,7 @@ static void on_load(void) {
             executor_ref, (void **) &executor));
 }
 
-__attribute__((destructor()))
+__attribute__((destructor))
 static void on_unload(void) {
     seagrass_required_true(triggerfish_strong_release(executor_ref));
 }

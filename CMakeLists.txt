@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(aquarium-squid VERSION 1.0.0
+project(aquarium-squid VERSION 1.0.1
         LANGUAGES C
         DESCRIPTION "Executors and futures in C")
 
@@ -28,7 +28,6 @@ set(SOURCES
         src/private/future.h
         src/error.c
         src/executor.c
-        src/squid.c
         src/future.c)
 
 if(DOXYGEN_FOUND)
@@ -42,6 +41,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_library(${PROJECT_NAME} STATIC "")
     add_compile_definitions(TEST)
     target_sources(${PROJECT_NAME}
+            INTERFACE
+                src/squid.c
             PRIVATE
                 ${SOURCES})
     target_link_libraries(${PROJECT_NAME}
@@ -86,6 +87,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 else()
     add_library(${PROJECT_NAME} "")
     target_sources(${PROJECT_NAME}
+            INTERFACE
+                src/squid.c
             PRIVATE
                 ${SOURCES})
     target_include_directories(${PROJECT_NAME}
