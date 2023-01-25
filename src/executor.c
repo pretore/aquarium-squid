@@ -92,6 +92,18 @@ static void on_destroy(void *const object) {
         seagrass_required_true(SQUID_EXECUTOR_ERROR_IS_BUSY_SHUTTING_DOWN
                                == squid_error);
     }
+    uintmax_t count;
+    do {
+        seagrass_required_true(squid_executor_count(object, &count));
+        if (!count) {
+            break;
+        }
+        const struct timespec delay = {
+                .tv_nsec = 100000000 /* 100 milliseconds */
+        };
+        seagrass_required_true(!nanosleep(&delay, NULL)
+                               || errno == EINTR);
+    } while (true);
     seagrass_required_true(squid_executor_invalidate(object));
 }
 

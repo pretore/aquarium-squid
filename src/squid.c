@@ -1,6 +1,4 @@
 #include <stdlib.h>
-#include <time.h>
-#include <errno.h>
 #include <seagrass.h>
 #include <triggerfish.h>
 #include <squid.h>
@@ -26,19 +24,5 @@ static void on_load(void) {
 
 __attribute__((destructor()))
 static void on_unload(void) {
-    seagrass_required_true(squid_executor_shutdown(executor));
-    uintmax_t count;
-    do {
-        seagrass_required_true(squid_executor_count(
-                executor, &count));
-        if (!count) {
-            break;
-        }
-        const struct timespec delay = {
-                .tv_nsec = 100000000 /* 100 milliseconds */
-        };
-        seagrass_required_true(!nanosleep(&delay, NULL)
-                               || errno == EINTR);
-    } while (true);
     seagrass_required_true(triggerfish_strong_release(executor_ref));
 }
