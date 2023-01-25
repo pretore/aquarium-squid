@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <assert.h>
+#include <time.h>
 #include <errno.h>
 #include <seagrass.h>
 #include <squid.h>
