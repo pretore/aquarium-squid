@@ -88,7 +88,10 @@ bool squid_executor_shutdown(struct squid_executor *const object) {
 }
 
 static void on_destroy(void *const object) {
-    seagrass_required_true(squid_executor_shutdown(object));
+    if (!squid_executor_shutdown(object)) {
+        seagrass_required_true(SQUID_EXECUTOR_ERROR_IS_BUSY_SHUTTING_DOWN
+                               == squid_error);
+    }
     seagrass_required_true(squid_executor_invalidate(object));
 }
 

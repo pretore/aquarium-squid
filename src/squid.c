@@ -40,4 +40,5 @@ static void on_unload(void) {
         seagrass_required_true(!nanosleep(&delay, NULL)
                                || errno == EINTR);
     } while (true);
+    seagrass_required_true(triggerfish_strong_release(executor_ref));
 }
