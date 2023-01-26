@@ -15,19 +15,22 @@
 
 static struct triggerfish_strong *executor_ref;
 static struct squid_executor *instance;
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;
 
 bool squid_executor_reference(struct triggerfish_strong **const out) {
     if (!out) {
         squid_error = SQUID_EXECUTOR_ERROR_OUT_IS_NULL;
         return false;
     }
+    seagrass_required_true(!pthread_rwlock_rdlock(&lock));
     if (triggerfish_strong_retain(executor_ref)) {
+        seagrass_required_true(!pthread_rwlock_unlock(&lock));
         *out = executor_ref;
         return true;
     }
+    seagrass_required_true(!pthread_rwlock_unlock(&lock));
     bool result = true;
-    seagrass_required_true(!pthread_mutex_lock(&mutex));
+    seagrass_required_true(!pthread_rwlock_wrlock(&lock));
     if (!triggerfish_strong_retain(executor_ref)) {
         if (!(result = squid_executor_of(&executor_ref))) {
             seagrass_required_true(
@@ -41,7 +44,7 @@ bool squid_executor_reference(struct triggerfish_strong **const out) {
     if (result) {
         *out = executor_ref;
     }
-    seagrass_required_true(!pthread_mutex_unlock(&mutex));
+    seagrass_required_true(!pthread_rwlock_unlock(&lock));
     return result;
 }
 
@@ -122,11 +125,11 @@ bool squid_executor_shutdown(struct squid_executor *const object) {
 }
 
 static void on_destroy(void *const object) {
-    seagrass_required_true(!pthread_mutex_lock(&mutex));
+    seagrass_required_true(!pthread_rwlock_wrlock(&lock));
     if (instance == object) {
         executor_ref = NULL;
     }
-    seagrass_required_true(!pthread_mutex_unlock(&mutex));
+    seagrass_required_true(!pthread_rwlock_unlock(&lock));
     if (!squid_executor_shutdown(object)) {
         seagrass_required_true(SQUID_EXECUTOR_ERROR_IS_BUSY_SHUTTING_DOWN
                                == squid_error);
