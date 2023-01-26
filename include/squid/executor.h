@@ -17,6 +17,16 @@ struct squid_executor;
 struct squid_future;
 
 /**
+ * @brief Retrieve global executor reference.
+ * @param [out] out receive global executor reference.
+ * @throws SQUID_EXECUTOR_ERROR_OUT_IS_NULL if out is <i>NULL</i>.
+ * @throws SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED if there is
+ * insufficient memory to create global executor.
+ * @note <b>out</b> must be released once done with it.
+ */
+bool squid_executor_reference(struct triggerfish_strong **out);
+
+/**
  * @brief Create executor instance.
  * @param [out] out receive newly created executor.
  * @return On success true, otherwise false if an error has occurred.
@@ -36,6 +46,17 @@ bool squid_executor_of(struct triggerfish_strong **out);
  * in the process of shutting down.
  */
 bool squid_executor_shutdown(struct squid_executor *object);
+
+/**
+ * @brief Check if executor will accept tasks.
+ * @param [in] object executor instance.
+ * @param [out] out receive if executor will accept tasks.
+ * @return On success true, otherwise false if an error has occurred.
+ * @throws SQUID_EXECUTOR_ERROR_OBJECT_IS_NULL if object is <i>NULL</i>.
+ * @throws SQUID_EXECUTOR_ERROR_OUT_IS_NULL if out is <i>NULL</i>.
+ */
+bool squid_executor_is_running(const struct squid_executor *object,
+                               bool *out);
 
 /**
  * @brief Retrieve count of total threads.
@@ -59,17 +80,6 @@ bool squid_executor_count(const struct squid_executor *object,
  */
 bool squid_executor_ready(const struct squid_executor *object,
                           uintmax_t *out);
-
-/**
- * @brief Check if executor will accept tasks.
- * @param [in] object executor instance.
- * @param [out] out receive if executor will accept tasks.
- * @return On success true, otherwise false if an error has occurred.
- * @throws SQUID_EXECUTOR_ERROR_OBJECT_IS_NULL if object is <i>NULL</i>.
- * @throws SQUID_EXECUTOR_ERROR_OUT_IS_NULL if out is <i>NULL</i>.
- */
-bool squid_executor_is_running(const struct squid_executor *object,
-                               bool *out);
 
 typedef void (*squid_function)(void *args,
                                bool (*is_cancelled)(void),

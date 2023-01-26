@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <pthread.h>
 #include <assert.h>
 #include <time.h>
 #include <errno.h>
@@ -11,6 +12,38 @@
 #ifdef TEST
 #include <test/cmocka.h>
 #endif
+
+static struct triggerfish_strong *executor_ref;
+static struct squid_executor *instance;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+bool squid_executor_reference(struct triggerfish_strong **const out) {
+    if (!out) {
+        squid_error = SQUID_EXECUTOR_ERROR_OUT_IS_NULL;
+        return false;
+    }
+    if (triggerfish_strong_retain(executor_ref)) {
+        *out = executor_ref;
+        return true;
+    }
+    bool result = true;
+    seagrass_required_true(!pthread_mutex_lock(&mutex));
+    if (!triggerfish_strong_retain(executor_ref)) {
+        if (!(result = squid_executor_of(&executor_ref))) {
+            seagrass_required_true(
+                    SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED
+                    == squid_error);
+        } else {
+            seagrass_required_true(triggerfish_strong_instance(
+                    executor_ref, (void **) &instance));
+        }
+    }
+    if (result) {
+        *out = executor_ref;
+    }
+    seagrass_required_true(!pthread_mutex_unlock(&mutex));
+    return result;
+}
 
 static void invalidate(struct squid_executor *const object) {
     assert(object);
@@ -89,6 +122,11 @@ bool squid_executor_shutdown(struct squid_executor *const object) {
 }
 
 static void on_destroy(void *const object) {
+    seagrass_required_true(!pthread_mutex_lock(&mutex));
+    if (instance == object) {
+        executor_ref = NULL;
+    }
+    seagrass_required_true(!pthread_mutex_unlock(&mutex));
     if (!squid_executor_shutdown(object)) {
         seagrass_required_true(SQUID_EXECUTOR_ERROR_IS_BUSY_SHUTTING_DOWN
                                == squid_error);

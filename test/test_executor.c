@@ -253,6 +253,34 @@ static void check_submit_error_on_thread_creation_failed(void **state) {
     squid_error = SQUID_ERROR_NONE;
 }
 
+static void check_reference_error_on_out_is_null(void **state) {
+    squid_error = SQUID_ERROR_NONE;
+    assert_false(squid_executor_reference(NULL));
+    assert_int_equal(SQUID_EXECUTOR_ERROR_OUT_IS_NULL, squid_error);
+    squid_error = SQUID_ERROR_NONE;
+}
+
+static void check_reference(void **state) {
+    squid_error = SQUID_ERROR_NONE;
+    struct triggerfish_strong *out;
+    assert_true(squid_executor_reference(&out));
+    assert_true(triggerfish_strong_release(out));
+    squid_error = SQUID_ERROR_NONE;
+}
+
+static void check_reference_error_on_memory_allocation_failed(void **state) {
+    squid_error = SQUID_ERROR_NONE;
+    struct triggerfish_strong *out;
+    malloc_is_overridden = calloc_is_overridden = realloc_is_overridden
+            = posix_memalign_is_overridden = true;
+    assert_false(squid_executor_reference(&out));
+    malloc_is_overridden = calloc_is_overridden = realloc_is_overridden
+            = posix_memalign_is_overridden = false;
+    assert_int_equal(SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED,
+                     squid_error);
+    squid_error = SQUID_ERROR_NONE;
+}
+
 int main(int argc, char *argv[]) {
     const struct CMUnitTest tests[] = {
             cmocka_unit_test(check_invalidate_error_on_object_is_null),
@@ -278,6 +306,9 @@ int main(int argc, char *argv[]) {
             cmocka_unit_test(check_submit_error_on_is_busy_shutting_down),
             cmocka_unit_test(check_submit),
             cmocka_unit_test(check_submit_error_on_thread_creation_failed),
+            cmocka_unit_test(check_reference_error_on_out_is_null),
+            cmocka_unit_test(check_reference),
+            cmocka_unit_test(check_reference_error_on_memory_allocation_failed),
     };
     //cmocka_set_message_output(CM_OUTPUT_XML);
     return cmocka_run_group_tests(tests, NULL, NULL);
