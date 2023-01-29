@@ -8,6 +8,7 @@
 #define SQUID_FUTURE_ERROR_OBJECT_IS_NULL                   1
 #define SQUID_FUTURE_ERROR_OUT_IS_NULL                      2
 #define SQUID_FUTURE_ERROR_FUTURE_IS_CANCELLED              3
+#define SQUID_FUTURE_ERROR_FUTURE_IS_DONE                   4
 
 struct triggerfish_strong;
 struct squid_future;
@@ -29,6 +30,15 @@ enum squid_future_status {
  */
 bool squid_future_status(const struct squid_future *object,
                          enum squid_future_status *out);
+
+/**
+ * @brief Cancel future's task.
+ * @param [in] object future instance.
+ * @return On success true, otherwise false if an error has occurred.
+ * @throws SQUID_FUTURE_ERROR_OBJECT_IS_NULL if object is <i>NULL</i>.
+ * @throws SQUID_FUTURE_ERROR_FUTURE_IS_DONE if future's task is already done.
+ */
+bool squid_future_cancel(struct squid_future *object);
 
 /**
  * @brief Retrieve result.

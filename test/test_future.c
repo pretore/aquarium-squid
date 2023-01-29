@@ -145,6 +145,35 @@ static void check_status(void **state) {
     squid_error = SQUID_ERROR_NONE;
 }
 
+static void check_cancel_error_on_object_is_null(void **state) {
+    squid_error = SQUID_ERROR_NONE;
+    assert_false(squid_future_cancel(NULL));
+    assert_int_equal(SQUID_FUTURE_ERROR_OBJECT_IS_NULL, squid_error);
+    squid_error = SQUID_ERROR_NONE;
+}
+
+static void check_cancel_error_on_future_is_done(void **state) {
+    squid_error = SQUID_ERROR_NONE;
+    struct squid_future object = {
+            .status = SQUID_FUTURE_STATUS_DONE
+    };
+    assert_false(squid_future_cancel(&object));
+    assert_int_equal(SQUID_FUTURE_ERROR_FUTURE_IS_DONE, squid_error);
+    squid_error = SQUID_ERROR_NONE;
+}
+
+static void check_cancel(void **state) {
+    squid_error = SQUID_ERROR_NONE;
+    struct squid_future object = {};
+    enum squid_future_status status;
+    assert_true(squid_future_status(&object, &status));
+    assert_int_equal(status, SQUID_FUTURE_STATUS_PENDING);
+    assert_true(squid_future_cancel(&object));
+    assert_true(squid_future_status(&object, &status));
+    assert_int_equal(status, SQUID_FUTURE_STATUS_CANCELLED);
+    squid_error = SQUID_ERROR_NONE;
+}
+
 static void check_get_error_on_object_is_null(void **state) {
     squid_error = SQUID_ERROR_NONE;
     assert_false(squid_future_get(NULL, (void *) 1, (void *) 1));
@@ -196,7 +225,7 @@ static void check_get_error_on_future_is_cancelled(void **state) {
     assert_true(squid_future_init(&object, executor, (void *) 1, NULL));
     assert_true(triggerfish_strong_release(executor));
     assert_true(triggerfish_strong_of(malloc(1), on_destroy, &object.out));
-    atomic_store(&object.status, SQUID_FUTURE_STATUS_CANCELLED);
+    assert_true(squid_future_cancel(&object));
     struct {
         struct triggerfish_strong *out;
         uintmax_t error;
@@ -224,6 +253,9 @@ int main(int argc, char *argv[]) {
             cmocka_unit_test(check_status_error_on_object_is_null),
             cmocka_unit_test(check_status_error_on_out_is_null),
             cmocka_unit_test(check_status),
+            cmocka_unit_test(check_cancel_error_on_object_is_null),
+            cmocka_unit_test(check_cancel_error_on_future_is_done),
+            cmocka_unit_test(check_cancel),
             cmocka_unit_test(check_get_error_on_object_is_null),
             cmocka_unit_test(check_get_error_on_out_is_null),
             cmocka_unit_test(check_get),

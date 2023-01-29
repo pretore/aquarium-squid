@@ -19,12 +19,8 @@ static void invalidate(struct squid_future *const object) {
     if ((error = pthread_cond_destroy(&object->condition))) {
         seagrass_required_true(error == EINVAL);
     }
-    if (object->out) {
-        seagrass_required_true(triggerfish_strong_release(object->out));
-    }
-    if (object->executor) {
-        seagrass_required_true(triggerfish_strong_release(object->executor));
-    }
+    triggerfish_strong_release(object->out);
+    triggerfish_strong_release(object->executor);
     *object = (struct squid_future) {0};
 }
 
@@ -133,6 +129,23 @@ bool squid_future_status(const struct squid_future *object,
         return false;
     }
     *out = atomic_load(&object->status);
+    return true;
+}
+
+bool squid_future_cancel(struct squid_future *const object) {
+    if (!object) {
+        squid_error = SQUID_FUTURE_ERROR_OBJECT_IS_NULL;
+        return false;
+    }
+    enum squid_future_status expected = SQUID_FUTURE_STATUS_RUNNING;
+    while (!atomic_compare_exchange_strong(&object->status,
+                                           (int *) &expected,
+                                           SQUID_FUTURE_STATUS_CANCELLED)) {
+        if (SQUID_FUTURE_STATUS_DONE == expected) {
+            squid_error = SQUID_FUTURE_ERROR_FUTURE_IS_DONE;
+            return false;
+        }
+    }
     return true;
 }
 
