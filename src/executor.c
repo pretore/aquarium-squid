@@ -163,6 +163,7 @@ bool squid_executor_of(struct triggerfish_strong **const out) {
         seagrass_required_true(
                 SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED
                 == squid_error);
+        free(object);
         return false;
     }
     struct triggerfish_strong *strong;
