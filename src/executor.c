@@ -121,24 +121,13 @@ bool squid_executor_shutdown(struct squid_executor *const object) {
         squid_error = SQUID_EXECUTOR_ERROR_IS_BUSY_SHUTTING_DOWN;
         return false;
     }
-    return true;
-}
-
-static void on_destroy(void *const object) {
-    seagrass_required_true(!pthread_rwlock_wrlock(&lock));
-    if (instance == object) {
-        executor_ref = NULL;
-    }
-    seagrass_required_true(!pthread_rwlock_unlock(&lock));
-    if (!squid_executor_shutdown(object)) {
-        seagrass_required_true(SQUID_EXECUTOR_ERROR_IS_BUSY_SHUTTING_DOWN
-                               == squid_error);
-    }
-    uintmax_t count;
     do {
-        seagrass_required_true(squid_executor_count(object, &count));
-        if (!count) {
+        if (!atomic_load(&object->threads.count)) {
             break;
+        }
+        if (atomic_load(&object->threads.ready)) {
+            seagrass_required_true(!pthread_cond_broadcast(
+                    &object->threads.condition));
         }
         const struct timespec delay = {
                 .tv_nsec = 100000000 /* 100 milliseconds */
@@ -146,7 +135,21 @@ static void on_destroy(void *const object) {
         seagrass_required_true(!nanosleep(&delay, NULL)
                                || errno == EINTR);
     } while (true);
-    seagrass_required_true(squid_executor_invalidate(object));
+    return true;
+}
+
+static void on_destroy(void *const object) {
+    struct squid_executor *const executor = object;
+    seagrass_required_true(!pthread_rwlock_wrlock(&lock));
+    if (instance == executor) {
+        executor_ref = NULL;
+    }
+    seagrass_required_true(!pthread_rwlock_unlock(&lock));
+    if (!squid_executor_shutdown(object)) {
+        seagrass_required_true(SQUID_EXECUTOR_ERROR_IS_BUSY_SHUTTING_DOWN
+                               == squid_error);
+    }
+    seagrass_required_true(squid_executor_invalidate(executor));
 }
 
 bool squid_executor_of(struct triggerfish_strong **const out) {
@@ -239,10 +242,7 @@ static bool is_cancelled(void) {
     struct squid_executor *executor;
     seagrass_required_true(triggerfish_strong_instance(
             task->executor, (void **) &executor));
-    bool is_running;
-    seagrass_required_true(squid_executor_is_running(
-            executor, &is_running));
-    if (!is_running) {
+    if (!atomic_load(&executor->is_running)) {
         atomic_store(&task->status, SQUID_FUTURE_STATUS_CANCELLED);
         return true;
     }
@@ -267,10 +267,7 @@ static void *routine(void *object) {
                 &executor->threads.condition));
         seagrass_required_true(triggerfish_strong_instance(
                 out, (void **) &task));
-        bool is_running;
-        seagrass_required_true(squid_executor_is_running(
-                executor, &is_running));
-        if (is_running) {
+        if (atomic_load(&executor->is_running)) {
             atomic_store(&task->status, SQUID_FUTURE_STATUS_RUNNING);
             task->function(task->args, is_cancelled, &task->out, &task->error);
             if (SQUID_FUTURE_STATUS_RUNNING == atomic_load(&task->status)) {
@@ -309,9 +306,10 @@ static void *routine(void *object) {
     seagrass_required_true(!pthread_mutex_unlock(&executor->threads.mutex));
     seagrass_required_true(seagrass_uintmax_t_subtract(
             atomic_fetch_sub(&executor->threads.ready, 1), 1, &value));
-    if (!error
-        || lionfish_concurrent_linked_queue_sr_peek(&executor->tasks,
-                                                    &peek)) {
+    if (atomic_load(&executor->is_running)
+        && (!error
+            || lionfish_concurrent_linked_queue_sr_peek(&executor->tasks,
+                                                        &peek))) {
         goto loop;
     }
     seagrass_required_true(seagrass_uintmax_t_subtract(

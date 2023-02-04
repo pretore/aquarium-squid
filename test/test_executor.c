@@ -230,8 +230,7 @@ static void check_submit(void **state) {
     assert_null(result.out);
     assert_int_equal(result.error, random_value);
     assert_true(triggerfish_strong_release(out));
-    for (uintmax_t delay = 65, slept; delay && (slept = sleep(delay));
-         delay -= slept);
+    assert_true(squid_executor_shutdown(executor));
     assert_true(triggerfish_strong_release(instance));
     squid_error = SQUID_ERROR_NONE;
 }
