@@ -73,12 +73,8 @@ bool squid_executor_init(struct squid_executor *const object) {
     }
     *object = (struct squid_executor) {0};
     int error;
-    if ((error = pthread_mutex_init(&object->threads.mutex, NULL))) {
-        seagrass_required_true(ENOMEM == error);
-        squid_error = SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED;
-        return false;
-    }
-    if ((error = pthread_cond_init(&object->threads.condition, NULL))) {
+    if ((error = pthread_mutex_init(&object->threads.mutex, NULL))
+        || (error = pthread_cond_init(&object->threads.condition, NULL))) {
         seagrass_required_true(ENOMEM == error);
         invalidate(object);
         squid_error = SQUID_EXECUTOR_ERROR_MEMORY_ALLOCATION_FAILED;
@@ -268,10 +264,16 @@ static void *routine(void *object) {
         seagrass_required_true(triggerfish_strong_instance(
                 out, (void **) &task));
         if (atomic_load(&executor->is_running)) {
-            atomic_store(&task->status, SQUID_FUTURE_STATUS_RUNNING);
-            task->function(task->args, is_cancelled, &task->out, &task->error);
-            if (SQUID_FUTURE_STATUS_RUNNING == atomic_load(&task->status)) {
-                atomic_store(&task->status, SQUID_FUTURE_STATUS_DONE);
+            enum squid_future_status expected = SQUID_FUTURE_STATUS_PENDING;
+            if (atomic_compare_exchange_strong(&task->status,
+                                               (int *) &expected,
+                                               SQUID_FUTURE_STATUS_RUNNING)) {
+                task->function(task->args, is_cancelled, &task->out,
+                               &task->error);
+                expected = SQUID_FUTURE_STATUS_RUNNING;
+                atomic_compare_exchange_strong(&task->status,
+                                               (int *) &expected,
+                                               SQUID_FUTURE_STATUS_DONE);
             }
         } else {
             atomic_store(&task->status, SQUID_FUTURE_STATUS_CANCELLED);
