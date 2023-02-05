@@ -34,11 +34,13 @@ bool squid_future_status(const struct squid_future *object,
 /**
  * @brief Cancel future's task.
  * @param [in] object future instance.
+ * @param [out] out receive status of future before it was cancelled.
  * @return On success true, otherwise false if an error has occurred.
  * @throws SQUID_FUTURE_ERROR_OBJECT_IS_NULL if object is <i>NULL</i>.
  * @throws SQUID_FUTURE_ERROR_FUTURE_IS_DONE if future's task is already done.
  */
-bool squid_future_cancel(struct squid_future *object);
+bool squid_future_cancel(struct squid_future *object,
+                         enum squid_future_status *out);
 
 /**
  * @brief Retrieve result.

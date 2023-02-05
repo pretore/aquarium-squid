@@ -132,16 +132,21 @@ bool squid_future_status(const struct squid_future *object,
     return true;
 }
 
-bool squid_future_cancel(struct squid_future *const object) {
+bool squid_future_cancel(struct squid_future *const object,
+                         enum squid_future_status *out) {
     if (!object) {
         squid_error = SQUID_FUTURE_ERROR_OBJECT_IS_NULL;
         return false;
     }
-    enum squid_future_status expected = SQUID_FUTURE_STATUS_RUNNING;
+    enum squid_future_status expected;
+    if (!out) {
+        out = &expected;
+    }
+    *out = SQUID_FUTURE_STATUS_RUNNING;
     while (!atomic_compare_exchange_strong(&object->status,
-                                           (int *) &expected,
+                                           (int *) out,
                                            SQUID_FUTURE_STATUS_CANCELLED)) {
-        if (SQUID_FUTURE_STATUS_DONE == expected) {
+        if (SQUID_FUTURE_STATUS_DONE == *out) {
             squid_error = SQUID_FUTURE_ERROR_FUTURE_IS_DONE;
             return false;
         }

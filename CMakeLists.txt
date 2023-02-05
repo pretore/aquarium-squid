@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(aquarium-squid VERSION 2.1.3
+project(aquarium-squid VERSION 3.0.0
         LANGUAGES C
         DESCRIPTION "Executors and futures in C")
 

@@ -147,7 +147,7 @@ static void check_status(void **state) {
 
 static void check_cancel_error_on_object_is_null(void **state) {
     squid_error = SQUID_ERROR_NONE;
-    assert_false(squid_future_cancel(NULL));
+    assert_false(squid_future_cancel(NULL, (void *) 1));
     assert_int_equal(SQUID_FUTURE_ERROR_OBJECT_IS_NULL, squid_error);
     squid_error = SQUID_ERROR_NONE;
 }
@@ -157,7 +157,7 @@ static void check_cancel_error_on_future_is_done(void **state) {
     struct squid_future object = {
             .status = SQUID_FUTURE_STATUS_DONE
     };
-    assert_false(squid_future_cancel(&object));
+    assert_false(squid_future_cancel(&object, NULL));
     assert_int_equal(SQUID_FUTURE_ERROR_FUTURE_IS_DONE, squid_error);
     squid_error = SQUID_ERROR_NONE;
 }
@@ -168,7 +168,9 @@ static void check_cancel(void **state) {
     enum squid_future_status status;
     assert_true(squid_future_status(&object, &status));
     assert_int_equal(status, SQUID_FUTURE_STATUS_PENDING);
-    assert_true(squid_future_cancel(&object));
+    enum squid_future_status out;
+    assert_true(squid_future_cancel(&object, &out));
+    assert_int_equal(out, SQUID_FUTURE_STATUS_PENDING);
     assert_true(squid_future_status(&object, &status));
     assert_int_equal(status, SQUID_FUTURE_STATUS_CANCELLED);
     squid_error = SQUID_ERROR_NONE;
@@ -225,7 +227,7 @@ static void check_get_error_on_future_is_cancelled(void **state) {
     assert_true(squid_future_init(&object, executor, (void *) 1, NULL));
     assert_true(triggerfish_strong_release(executor));
     assert_true(triggerfish_strong_of(malloc(1), on_destroy, &object.out));
-    assert_true(squid_future_cancel(&object));
+    assert_true(squid_future_cancel(&object, NULL));
     struct {
         struct triggerfish_strong *out;
         uintmax_t error;
